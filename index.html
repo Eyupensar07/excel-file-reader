@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel Verisi Okuyucu</title>
+    <!-- SheetJS (XLSX.js) Kütüphanesini dahil ediyoruz -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.3/xlsx.full.min.js"></script>
+    <style>
+        /* Stil Ayarları */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #71C9CE;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        #output {
+            width: 100%;
+            height: 300px;
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            font-family: monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            background-color: #A6E3E9;
+        }
+        input[type="file"] {
+            margin-top: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        select {
+            margin: 10px 0;          
+            font-size: 16px;
+            border-radius: 5px;
+            width: 75px;
+        }
+        #emojiCount {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Excel Dosyasını Yükleyin</h1>
+        <!-- Dosya yüklemek için input alanı -->
+        <input type="file" id="fileInput" accept=".xlsx, .xls" onchange="readExcel()" />
+
+        <!-- Emoji Seçim Alanları -->
+        <div>
+            <label for="locationEmoji">Lokasyon Emojisi:</label>
+            <select id="locationEmojiSelect">
+                <option value="📍">📍</option>
+                <option value="🌍">🌍</option>
+                <option value="📌">📌</option>
+                <option value="🏙️">🏙️</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="salaryEmoji">Maaş Emojisi:</label>
+            <select id="salaryEmojiSelect">
+                <option value="💰">💰</option>
+                <option value="🏦">🏦</option>
+                <option value="💵">💵</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="transportEmoji">Ulaşım Emojisi:</label>
+            <select id="transportEmojiSelect">
+                <option value="🚗">🚗</option>
+                <option value="🚕">🚕</option>
+                <option value="🚌">🚌</option>
+                <option value="🚎">🚎</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="mealEmoji">Yemek Emojisi:</label>
+            <select id="mealEmojiSelect">
+                <option value="🍽️">🍽️</option>
+                <option value="🍝">🍝</option>
+                <option value="🍔">🍔</option>
+                <option value="🍱">🍱</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="scheduleEmoji">Çalışma Düzeni Emojisi:</label>
+            <select id="scheduleEmojiSelect">
+                <option value="⌚">⌚</option>
+                <option value="⏰">⏰</option>
+                <option value="🕒">🕒</option>
+                <option value="⏱️">⏱️</option>
+            </select>
+        </div>
+
+        <!-- Sayaç -->
+        <div id="emojiCount">Toplam Okunan Satır: 0</div>
+
+        <!-- Çıktının gösterileceği textarea -->
+        <textarea id="output" placeholder="İşlenen veriler buraya yansıyacak..." readonly></textarea>
+
+        <!-- İşlenmiş metni indirmek için buton -->
+        <button onclick="downloadText()">Metni İndir</button>
+    </div>
+
+    <script>
+        // Satır sayısını gösterecek olan fonksiyon
+        function updateRowCount(count) {
+            const emojiCount = document.getElementById('emojiCount');
+            emojiCount.textContent = `Toplam Okunan Satır: ${count}`;
+        }
+
+        // Emoji değeri almak ve güncellemek
+        function getSelectedEmoji(selectId) {
+            const select = document.getElementById(selectId).value;
+            return select; // Sadece select değerini al
+        }
+
+        function safeGetValue(row, columnName, defaultValue = '') {
+            return row[columnName] || defaultValue;
+        }
+
+        function processSalary(salary, salaryEmoji) {
+            return salary ? `${salaryEmoji} ${salary}` : '';
+        }
+
+        function processTransportation(transportation, transportEmoji) {
+            if (!transportation) return '';
+            if (transportation === 'SERVİS') return `${transportEmoji} SERVİS`;
+            if (transportation === 'YOL MAAŞA DAHİL') return 'YOL MAAŞA DAHİL';
+            if (transportation === '1.569 ( Akbil )') return `${transportEmoji} 1.569 ( Akbil )`;
+            if (transportation === '1.569 NAKİT') return `${transportEmoji} 1.569 NAKİT`;
+            return transportation;
+        }
+
+        function processMeal(meal, mealEmoji) {
+            if (!meal) return '';
+            if (meal.includes('YEMEK PROJEDEN')) return `${mealEmoji} yemek projeden`;
+            if (meal.includes('SODEXO')) return `${mealEmoji} ${meal}`;
+            return meal;
+        }
+
+        function formatJobMessage({ location, project, workSchedule, salary, transportation, taxInfo, meal, hiringNote }) {
+            return `🔴🔴🔴
+*${location} - ${project}* \n
+*${workSchedule}*
+
+*${salary} ${transportation ? '+' + transportation : ''} ${taxInfo}${meal ? ' + ' + meal : ''}*
+
+${hiringNote}`;
+        }
+
+        function readExcel() {
+            const fileInput = document.getElementById('fileInput');
+            const outputTextarea = document.getElementById('output');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                alert('Lütfen bir dosya seçin!');
+                return;
+            }
+
+            const reader = new FileReader();
+            
+            // Seçilen emojileri almak
+            const locationEmoji = getSelectedEmoji('locationEmojiSelect');
+            const salaryEmoji = getSelectedEmoji('salaryEmojiSelect');
+            const transportEmoji = getSelectedEmoji('transportEmojiSelect');
+            const mealEmoji = getSelectedEmoji('mealEmojiSelect');
+            const scheduleEmoji = getSelectedEmoji('scheduleEmojiSelect');
+
+            reader.onload = function(event) {
+                const data = new Uint8Array(event.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheetName = workbook.SheetNames[0];
+                const sheet = workbook.Sheets[sheetName];
+                const excelData = XLSX.utils.sheet_to_json(sheet);
+
+                // Veriyi işleyip metne dönüştürme
+                const processedData = excelData.map(row => {
+                    const location = safeGetValue(row, 'LOKASYON', '');
+                    const project = safeGetValue(row, 'PROJE', '');
+                    const workSchedule = safeGetValue(row, 'ÇALIŞMA DÜZENİ', '');
+                    const salary = processSalary(safeGetValue(row, 'MAAŞ'), salaryEmoji);
+                    const transportation = processTransportation(safeGetValue(row, 'YOL'), transportEmoji);
+                    const meal = processMeal(safeGetValue(row, 'YEMEK'), mealEmoji);
+                    const taxInfo = safeGetValue(row, 'VERGİ KESİNTİSİ') === 'VAR' ? 'Vergi dilimi var' : 'Vergiden muaf.';
+                    const hiringNote = `📲 *Bölge işe alım uzmanı İhsan BİLGİN 0 549 477 28 89 0 544 925 37 35 Lütfen WhatsApp'tan iletişime geçiniz.*`;
+
+                    if (!location || !project || !workSchedule || !salary || !transportation || !taxInfo) {
+                        return '';  // Bu satır boş bırakılacak
+                    }
+
+                    return formatJobMessage({
+                        location: `${locationEmoji} ${location}`,
+                        project: `${project} projesi özel güvenlik kimlik kartı olan askerliği yapılmış 20/40 yaş arası erkek güvenlik görevlisi alınacaktır.`,
+                        workSchedule: `${scheduleEmoji} ${workSchedule}`,
+                        salary,
+                        transportation,
+                        taxInfo,
+                        meal,
+                        hiringNote,
+                    });
+                }).filter(row => row !== '');  // Boş satırları filtrele
+
+                // Satır sayısını güncelleme
+                updateRowCount(processedData.length);
+
+                // Metinleri birleştirip çıktı textarea'sına yazma
+                const joinedData = processedData.join('\n\n');
+                outputTextarea.value = joinedData;
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+
+        // İşlenen veriyi metin olarak indirme
+        function downloadText() {
+            const outputTextarea = document.getElementById('output');
+            const text = outputTextarea.value;
+            const blob = new Blob([text], { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'veriler.txt';
+            link.click();
+        }
+        
+        
+    </script>
+</body>
+</html>
