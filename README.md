@@ -1,1 +1,1 @@
-Kullanıcının isteğine yönelik tasarlanmıştır. Kullanılabilmesi için üzerinde değişlikler yapılması gerekir.
+It is designed according to the user's request. Modifications need to be made for it to be usable. (Kullanıcının isteğine yönelik tasarlanmıştır. Kullanılabilmesi için üzerinde değişlikler yapılması gerekir.)
